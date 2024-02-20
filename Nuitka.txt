@@ -1,0 +1,1 @@
+nuitka --onefile --windows-icon-from-ico=free.ico  --windows-uac-admin loader.py
