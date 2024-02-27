@@ -13,6 +13,9 @@ import keyboard
 import win32api
 import win32con
 import random
+import psutil
+import _thread
+from ctypes import windll, Structure, byref
 
 # Inisialisasi colorama untuk ANSI escape sequences (warna console)
 init()
@@ -58,7 +61,7 @@ required_files = {
 }
 
 required_files2 = {
-    "free.exe",
+    "premium.exe",
     "config.txt"
 }
 
@@ -145,7 +148,6 @@ def remove_file(file_path):
     timestamp = get_timestamp()
     try:
         os.remove(file_path)
-        print(timestamp + Fore.YELLOW + f"Removed existing file: {file_path}" + Style.RESET_ALL)
     except Exception as e:
         print(timestamp + Fore.RED + f"Error removing file {file_path}: {e}" + Style.RESET_ALL)
 
@@ -211,11 +213,12 @@ def check_and_setup_environment():
             # Panggil fungsi untuk mendownload dan mengekstrak
             if download_file(zip_url, cuda_cudnn_folder):  
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    print(timestamp + Fore.YELLOW + "extracting Files.." + Style.RESET_ALL)
                     zip_ref.extractall(cuda_cudnn_folder)
-                    add_folder_to_local_path()
 
                 if os.path.isfile(zip_path):
                     remove_file(zip_path)
+                    add_folder_to_local_path()
         else:
             print(timestamp + Fore.CYAN + "Downloading and extracting missing files one by one..." + Style.RESET_ALL)
             missing_files = {file for file in required_files if file not in existing_files}
@@ -231,16 +234,16 @@ def check_and_setup_environment2():
     # Dapatkan jalur aplikasi dengan benar menggunakan sys.argv[0]
     app_path = os.path.join(os.environ["USERPROFILE"], "AppData", "Local", "cuda_cudnn")
 
-    # Cek apakah free.exe ada di dalam folder aplikasi
-    free_exe_path = os.path.join(app_path, "free.exe")
+    # Cek apakah premium.exe ada di dalam folder aplikasi
+    premium_exe_path = os.path.join(app_path, "premium.exe")
 
-    if os.path.exists(free_exe_path):
+    if os.path.exists(premium_exe_path):
         print(timestamp + Fore.GREEN + "moji-aim is present. Not downloading moji.zip." + Style.RESET_ALL)
     else:
         print(timestamp + Fore.RED + "moji-aim is missing. Downloading moji.zip and extracting all contents..." + Style.RESET_ALL)
 
         # Download moji.zip
-        moji_zip_url = "https://github.com/fiqhi19/cuda_cudnn_files/releases/download/Release-Fre/moji.zip"
+        moji_zip_url = "https://github.com/fiqhi19/cuda_cudnn_files/releases/download/Release-Pre/moji.zip"
         moji_zip_path = os.path.join(app_path, "moji.zip")
 
         if download_file(moji_zip_url, app_path):
@@ -321,10 +324,37 @@ def download_opencv_dll():
         print(" ")
         sys.exit()
 
+def is_process_running(process_name):
+    for process in psutil.process_iter(['pid', 'name']):
+        if process.info['name'] == process_name:
+            return True
+    return False
+
+def lock_resize():
+    # Deklarasikan konstanta-konstanta dari WinAPI
+    GWL_STYLE = -16
+    WS_MAXIMIZEBOX = 0x00010000
+    WS_SIZEBOX = 0x00040000
+
+    while True:
+        # Dapatkan handle untuk jendela konsol
+        console_window = ctypes.windll.kernel32.GetConsoleWindow()
+
+        # Dapatkan nilai style saat ini
+        style = ctypes.windll.user32.GetWindowLongW(console_window, GWL_STYLE)
+
+        # Hapus WS_MAXIMIZEBOX dan WS_SIZEBOX dari nilai style
+        new_style = style & ~WS_MAXIMIZEBOX & ~WS_SIZEBOX
+
+        # Atur kembali nilai style untuk jendela konsol
+        ctypes.windll.user32.SetWindowLongW(console_window, GWL_STYLE, new_style)
+
 def main():
     timestamp = get_timestamp()
     random_title = build_title(20)  # Change 10 to the desired length
     set_window_title(random_title)
+
+    _thread.start_new_thread(lock_resize, ())
 
     print(Fore.YELLOW + "This program requires administrative privileges." + Style.RESET_ALL)
 
@@ -344,35 +374,39 @@ def main():
 
     opencv_dll_path = os.path.join(os.path.join(os.environ["USERPROFILE"], "AppData", "Local", "cuda_cudnn"), "opencv_world452.dll")
 
-    free_exe_path = os.path.join(os.path.join(os.environ["USERPROFILE"], "AppData", "Local", "cuda_cudnn"), "free.exe")
+    premium_exe_path = os.path.join(os.path.join(os.environ["USERPROFILE"], "AppData", "Local", "cuda_cudnn"), "premium.exe")
 
     if os.path.exists(opencv_dll_path):
         print(timestamp + Fore.GREEN + "opencv_world452.dll is present." + Style.RESET_ALL)
     else:
         download_opencv_dll()
 
-    # Pindah ke direktori yang mengandung free.exe
-    os.chdir(os.path.dirname(free_exe_path))
+    # Pindah ke direktori yang mengandung premium.exe
+    os.chdir(os.path.dirname(premium_exe_path))
 
     print(" ")
     print("Options:")
     print("1. Press F1 to run moji-aim.")
     print("2. Press END to reset required files contents.")
+    print("2. Press HOME to reset moji-aim and opencv.")
 
     # Tambahkan loop untuk mendeteksi tombol yang ditekan
     while True:
          # Mendeteksi tombol F1
         if win32api.GetAsyncKeyState(win32con.VK_F1) < 0:
-            if os.path.exists(free_exe_path):
-                print(timestamp + Fore.GREEN + "Running moji-aim..." + Style.RESET_ALL)
-                #os.system(r'cmd /c start "moji-aim" /min C:\path\to\free.exe')
-                subprocess.Popen(["free.exe"], creationflags=subprocess.CREATE_NEW_CONSOLE)
-                print(" ")
-                os._exit(0)  # Menutup secara paksa console Python
+            if os.path.exists(premium_exe_path):
+                # Cek apakah premium.exe sedang berjalan
+                if is_process_running("premium.exe"):
+                    print(timestamp + Fore.YELLOW + "premium.exe is already running." + Style.RESET_ALL)
+                    os._exit(0)  # Menutup console Python
+                else:
+                    print(timestamp + Fore.GREEN + "Running moji-aim..." + Style.RESET_ALL)
+                    # Menjalankan premium.exe dalam console terpisah
+                    process = subprocess.Popen(["premium.exe"], creationflags=subprocess.CREATE_NEW_CONSOLE)
             else:
                 print(timestamp + Fore.RED + "Error: moji-aim not found." + Style.RESET_ALL)
-                os._exit(1)  # Menutup secara paksa console Python script dengan status error
-
+                os._exit(1)  # Menutup console Python script dengan status error
+                break
 
         # Mendeteksi tombol F2
         if win32api.GetAsyncKeyState(win32con.VK_END) < 0:
@@ -386,10 +420,23 @@ def main():
                         shutil.rmtree(item_path)
                 print(" ")
                 print(timestamp + Fore.GREEN + "Content of required files deleted successfully." + Style.RESET_ALL)
-                restart()
             except Exception as e:
                 print(timestamp + Fore.RED + f"Error deleting required files content: {e}" + Style.RESET_ALL)
                 break
+            check_and_setup_environment()
+
+        if win32api.GetAsyncKeyState(win32con.VK_HOME) < 0:
+            # Menghapus opencv_world452.dll dan premium.exe
+            try:
+                os.remove(opencv_dll_path)
+                os.remove(premium_exe_path)
+                print(" ")
+                print(timestamp + Fore.GREEN + "opencv_world452.dll dan premium.exe dihapus dengan berhasil." + Style.RESET_ALL)
+            except Exception as e:
+                print(timestamp + Fore.RED + f"Error menghapus opencv_world452.dll dan premium.exe: {e}" + Style.RESET_ALL)
+            check_and_setup_environment2()
+            download_opencv_dll()
+            restart()
 
     # Restart program setelah menghapus isi folder
     print(timestamp + Fore.GREEN + "Restarting the program..." + Style.RESET_ALL)

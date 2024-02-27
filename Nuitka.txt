@@ -1,1 +1,2 @@
-nuitka --onefile --windows-icon-from-ico=free.ico  --windows-uac-admin loader.py
+nuitka --onefile --windows-icon-from-ico=icon.ico  --windows-uac-admin loader.py
+PyInstaller --onefile --uac-admin --icon=icon.ico loader.py
